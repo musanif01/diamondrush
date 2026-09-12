@@ -64,7 +64,7 @@ function buildEntity(
   };
 }
 
-export function buildGame(def: LevelDef): GameState {
+export function buildGame(def: LevelDef, levelIndex = 0): GameState {
   checkLevelIntegrity(def);
   const grid: TileCode[][] = def.rowsData.map((row) =>
     row.map((raw) => staticTile(raw)),
@@ -109,7 +109,7 @@ export function buildGame(def: LevelDef): GameState {
   entities.push(player);
 
   return {
-    levelIndex: 0,
+    levelIndex,
     grid,
     cols: def.cols,
     rows: def.rows,
@@ -127,6 +127,7 @@ export function buildGame(def: LevelDef): GameState {
     exitOpen: false,
     hasKey: false,
     hasHammer: false,
+    dugCells: new Set<string>(),
     heldDir: null,
     inputQueue: [],
     playerDelay: 0,
@@ -141,7 +142,7 @@ export function newGame(levelIndex = 0): GameState {
   nextId = 1;
   const def = LEVELS[levelIndex];
   if (!def) throw new Error(`no level ${levelIndex}`);
-  return buildGame(def);
+  return buildGame(def, levelIndex);
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +184,7 @@ function movePlayerTo(g: GameState, x: number, y: number, dir: Dir): void {
 function dig(g: GameState, x: number, y: number): void {
   if ((g.grid[y]?.[x] ?? T.EMPTY) === T.EMPTY) return;
   (g.grid[y] as TileCode[])[x] = T.EMPTY;
+  g.dugCells.add(`${x},${y}`);
   g.score += SCORE.DIRT;
   emit(g, 'dig');
 }
@@ -227,6 +229,7 @@ function attemptPlayerMove(g: GameState, dir: Dir): void {
 
   if (tile === T.CHEST) {
     (g.grid[ty] as TileCode[])[tx] = T.EMPTY;
+    g.dugCells.add(`${tx},${ty}`);
     g.hasHammer = true;
     g.diamonds++;
     g.score += SCORE.CHEST;
@@ -295,7 +298,7 @@ function advanceEnemy(g: GameState, e: Entity): void {
   const nx = e.x + dx;
   const ny = e.y + dy;
 
-  if (inBounds(g, nx, ny) && tileAt(g, nx, ny) === T.EMPTY && !entityAt(g, nx, ny)) {
+  if (inBounds(g, nx, ny) && tileAt(g, nx, ny) !== T.WALL && !entityAt(g, nx, ny)) {
     moveAnimation(g, e, nx, ny);
     e.frame = (e.frame + 1) % 4;
   } else {
@@ -443,6 +446,21 @@ export function resumeGame(g: GameState): void {
 export function restart(g: GameState): void {
   const fresh = newGame(g.levelIndex);
   Object.assign(g, fresh);
+  emit(g, 'start');
+}
+
+/** Advance to the next campaign stage (shows the intro card, with backdrop). */
+export function advanceLevel(g: GameState): void {
+  const next = g.levelIndex + 1;
+  if (!LEVELS[next]) {
+    toIntro(g);
+    return;
+  }
+  const fresh = newGame(next);
+  Object.assign(g, fresh);
+  g.status = 'intro';
+  g.inputQueue.length = 0;
+  g.heldDir = null;
   emit(g, 'start');
 }
 

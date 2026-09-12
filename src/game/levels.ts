@@ -3,9 +3,13 @@ import { REAL_STAGES, RealStage } from './pix/real_worlds';
 
 /**
  * Playable level definition. `rowsData` uses the shared tile legend:
- *   0 empty | 1 wall | 2 dirt | 3 boulder | 4 diamond | 5 chest
- *   6 crate | 7 spider | 8 exit door | 10 rusty key | 11 leaves | 12 snake
+ *   1 wall | 2 dirt | 3 boulder | 4 diamond | 5 chest
+ *   6 crate | 7 spider | 8 exit door | 9 player start
  * Code 9 (player start) is expanded at parse time.
+ *
+ * Real stages come from the original ROM dumps; their raw tile code 0 is
+ * diggable dirt (T.DIRT), not empty air — boulders rest on it and the player
+ * carves tunnels by walking. Hand-made levels may still use code 0 for air.
  */
 export interface LevelDef {
   name: string;
@@ -15,14 +19,15 @@ export interface LevelDef {
   rowsData: number[][];
   requiredDiamonds: number; // claim X diamonds to open the exit
   seed: number;
+  /** source world id ("angkor" | "bavaria" | "siberia") */
+  world?: string;
+  /** 1-based stage number within its world */
+  stageNo?: number;
   /** backdrop key into src/game/backdrops.ts (rendered 24px/tile) */
   backdrop?: string;
   /** authentic level label for the title card (e.g. "STAGE 1") */
   stageLabel?: string;
 }
-
-const REAL = REAL_STAGES.find((s) => s.world === 'bavaria' && s.stage === 1); // Bavaria stage 1
-if (!REAL) throw new Error('no real stage data (bavaria-1)');
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
@@ -44,32 +49,43 @@ function decodeBase64(input: string): Uint8Array {
   return Uint8Array.from(bytes);
 }
 
+/** Row-major rebuild of a real stage's terrain. Raw code 0 -> diggable dirt. */
 function decodeStage(stage: RealStage): number[][] {
   const raw = decodeBase64(stage.b64);
   const rows: number[][] = [];
   for (let y = 0; y < stage.h; y++) {
     const r: number[] = [];
     for (let x = 0; x < stage.w; x++) {
-      r.push(raw[y * stage.w + x] ?? T.EMPTY);
+      const c = raw[y * stage.w + x] ?? 0;
+      r.push(c === 0 ? T.DIRT : c);
     }
     rows.push(r);
   }
   return rows;
 }
 
-const REAL_DEF: LevelDef = {
-  name: REAL.world.toUpperCase(),
-  subtitle: `STAGE ${REAL.stage}`,
-  cols: REAL.w,
-  rows: REAL.h,
-  rowsData: decodeStage(REAL),
-  requiredDiamonds: REAL.diamondsTotal,
-  seed: 19960409,
-  backdrop: `${REAL.world}-${REAL.stage}`,
-  stageLabel: `STAGE ${REAL.stage}`,
+const WORLD_NAME: Record<string, string> = {
+  angkor: 'ANGKOR WAT',
+  bavaria: 'BAVARIA',
+  siberia: 'SIBERIA',
 };
 
-export const LEVELS: LevelDef[] = [REAL_DEF];
+const REAL_LEVELS: LevelDef[] = REAL_STAGES.map((s, i) => ({
+  name: WORLD_NAME[s.world] ?? s.world.toUpperCase(),
+  subtitle: `STAGE ${s.stage}`,
+  cols: s.w,
+  rows: s.h,
+  rowsData: decodeStage(s),
+  requiredDiamonds: s.diamondsTotal,
+  seed: 19960409 + i,
+  world: s.world,
+  stageNo: s.stage,
+  backdrop: `${s.world}-${s.stage}`,
+  stageLabel: `STAGE ${s.stage}`,
+}));
+
+/** Full campaign: 41 authentic stages in original order (angkor -> bavaria -> siberia). */
+export const LEVELS: LevelDef[] = REAL_LEVELS;
 
 /** Static grid tiles (walls & fixtures). Dynamic objects return EMPTY. */
 const GRID_MAP: Record<number, TileCode> = {

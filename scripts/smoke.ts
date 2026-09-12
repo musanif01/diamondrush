@@ -6,6 +6,7 @@
  * Run: npm run smoke
  */
 import {
+  advanceLevel,
   buildGame,
   entityAt,
   newGame,
@@ -14,7 +15,7 @@ import {
   stepGame,
   tileAt,
 } from '../src/game/engine';
-import { LevelDef } from '../src/game/levels';
+import { countTiles, LEVELS, LevelDef } from '../src/game/levels';
 import { T, DEATH_TICKS, SPAWN_INVULN_TICKS } from '../src/game/types';
 
 let failures = 0;
@@ -39,19 +40,83 @@ const def = (rowsData: number[][], requiredDiamonds: number): LevelDef => ({
 
 // ---------------------------------------------------------------------------
 function testLevelIntegrity() {
-  console.log('level integrity (real Bavaria stage 1)');
+  console.log('level integrity (real Angkor stage 1)');
   const g = newGame(0);
-  ok(g.cols === 45 && g.rows === 24, 'authentic bavaria-1 is 45x24');
-  ok(g.player.x === 2 && g.player.y === 19, 'player spawns at (2,19)');
-  ok(g.diamondsTotal === 44, 'stage needs all 44 diamonds (35 gems + 9 chests)');
+  const cols = 26;
+  const rows = 21;
+  ok(g.cols === cols && g.rows === rows, `authentic angkor-1 is ${cols}x${rows}`);
+  ok(g.player.x === 4 && g.player.y === 17, 'player spawns at (4,17)');
+  ok(g.diamondsTotal === 22, 'stage needs all 22 diamonds (21 gems + 1 chest)');
   ok(g.diamonds === 0, 'no diamonds collected at spawn');
-  ok(tileAt(g, g.player.x, g.player.y) === T.EMPTY, 'spawn cell is walkable (not a wall)');
+  ok(tileAt(g, g.player.x, g.player.y) !== T.WALL, 'spawn cell is walkable (not a wall)');
   ok(g.status === 'playing', 'starts playing after newGame');
+  const counts = countTiles(LEVELS[0]!);
   const boulders = g.entities.filter((e) => e.kind === 'boulder').length;
-  ok(boulders === 29, 'authentic count of 29 boulders');
-  const spiders = g.entities.filter((e) => e.kind === 'spider').length;
-  const snakes = g.entities.filter((e) => e.kind === 'snake').length;
-  ok(spiders === 3 && snakes === 7, '5 knights + ... spawn as 3 spiders, 7 snakes');
+  ok(boulders === (counts.get(T.BOULDER) ?? 0), `boulders (${boulders}) match map cells`);
+  const critters = g.entities.filter((e) => e.kind === 'spider' || e.kind === 'snake').length;
+  ok(
+    critters === (counts.get(T.SPIDER) ?? 0) + (counts.get(T.SNAKE) ?? 0),
+    `enemies (${critters}) match map cells`,
+  );
+}
+
+function testFullCampaign() {
+  console.log('full 41-stage campaign');
+  ok(LEVELS.length === 41, '41 authentic stages');
+  const worlds: Array<[string, number]> = [
+    ['angkor', 14],
+    ['bavaria', 13],
+    ['siberia', 14],
+  ];
+  let idx = 0;
+  for (const [world, stages] of worlds) {
+    for (let s = 1; s <= stages; s++) {
+      const def = LEVELS[idx]!;
+      ok(def.world === world && def.stageNo === s, `#${idx} ${world}-${s}`);
+      ok(def.rows === def.rowsData.length, `${world}-${s} row count`);
+      ok(def.rowsData.every((r) => r.length === def.cols), `${world}-${s} columns consistent`);
+      const counts = countTiles(def);
+      const total = (counts.get(T.DIAMOND) ?? 0) + (counts.get(T.CHEST) ?? 0);
+      ok(def.requiredDiamonds === total, `${world}-${s} needs ${total} (gems+chests)`);
+      const g = newGame(idx);
+      ok(
+        g.player.x >= 0 && g.player.x < def.cols && g.player.y >= 0 && g.player.y < def.rows,
+        `${world}-${s} spawn in bounds`,
+      );
+      ok(g.entities.every((e) => e.x >= 0 && e.y >= 0 && e.x < def.cols && e.y < def.rows), `${world}-${s} entities in bounds`);
+      idx++;
+    }
+  }
+  ok(idx === 41, 'campaign covers all stages in order');
+}
+
+function testEscapeStages() {
+  console.log('zero-diamond escape stages');
+  const esc = LEVELS.map((def, i) => (def.requiredDiamonds === 0 ? i : -1)).filter((i) => i >= 0);
+  ok(esc.length === 3, `found 3 escape stages (${esc.join(', ')})`);
+  for (const i of esc) {
+    const g = newGame(i);
+    ok(g.diamondsTotal === 0, `#${i} needs 0 diamonds`);
+    stepGame(g);
+    ok(g.exitOpen === true, `#${i} exit opens immediately without any diamonds`);
+    ok(g.status === 'playing', `#${i} remains playable for the escape run`);
+  }
+}
+
+function testProgression() {
+  console.log('level progression');
+  const g = newGame(0);
+  advanceLevel(g);
+  ok(g.levelIndex === 1, 'advance moves to stage 2');
+  ok(g.status === 'intro', 'advance shows the intro card');
+  ok(g.cols === LEVELS[1]!.cols && g.rows === LEVELS[1]!.rows, 'next stage fully loaded');
+  const last = newGame(LEVELS.length - 1);
+  advanceLevel(last);
+  ok(last.status === 'intro', 'clearing the final stage returns to intro');
+  const built = buildGame(def([[9]], 0), 7);
+  ok(built.levelIndex === 7, 'buildGame honours levelIndex');
+  const restarted = newGame(3);
+  ok(restarted.levelIndex === 3, 'newGame(3) is stage 4');
 }
 
 function testChestAutoCollect() {
@@ -72,6 +137,7 @@ function testChestAutoCollect() {
   ok(tileAt(g, 2, 1) === T.EMPTY, 'chest consumed on step-in');
   ok(g.diamonds === 1, 'chest counts as a diamond');
   ok(g.hasHammer === true, 'opened chest grants the hammer tool');
+  ok(g.dugCells.has('2,1'), 'consumed chest leaves a pit marker');
   ok(g.player.x === 2 && g.player.y === 1, 'player advanced into the chest tile');
 }
 
@@ -94,6 +160,7 @@ function testDiggingAndWalls() {
   stepGame(g);
   ok(tileAt(g, 2, 1) === T.EMPTY, 'dirt dug on move');
   ok(g.player.x === 2 && g.player.y === 1, 'player advanced into dug dirt');
+  ok(g.dugCells.has('2,1'), 'dug dirt recorded as a pit');
   ok(g.score > 0, 'digging scores points');
   g.inputQueue.length = 0;
   g.playerDelay = 0;
@@ -188,6 +255,23 @@ function testEnemyPatrol() {
   }
   ok(reversed || spider.x > 1 || spider.x < 5, 'spider reverses at boundaries');
   ok(spider.x >= 1 && spider.x <= 5, 'spider stays in corridor');
+
+  // spiders must also crawl across diggable dirt (real stages use 0 -> dirt)
+  const d = buildGame(
+    def(
+      [
+        [1, 1, 1, 1, 1, 1, 1],
+        [1, 2, 2, 7, 2, 2, 1],
+        [1, 9, 2, 2, 2, 2, 1],
+        [1, 2, 2, 2, 2, 2, 1],
+        [1, 1, 1, 1, 1, 1, 1],
+      ],
+      0,
+    ),
+  );
+  const sp = entityAt(d, 3, 1)!;
+  for (let i = 0; i < 24; i++) stepGame(d);
+  ok(sp.x !== 3 || sp.y !== 1, 'spider crawls across dirt floor');
 }
 
 function testExitUnlockAndWin() {
@@ -216,6 +300,9 @@ function testExitUnlockAndWin() {
 
 // ---------------------------------------------------------------------------
 testLevelIntegrity();
+testFullCampaign();
+testEscapeStages();
+testProgression();
 testChestAutoCollect();
 testDiggingAndWalls();
 testGravityFalling();

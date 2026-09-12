@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dir, GameEvent, GameState, TICK_MS } from '../game/types';
 import {
+  advanceLevel,
   beginGame,
   newGame,
   pauseGame,
@@ -92,7 +93,9 @@ export function useGameLoop(): GameLoop {
     const g = stateRef.current;
     if (g.status === 'intro') {
       beginGame(g);
-    } else if (g.status === 'levelclear' || g.status === 'gameover' || g.status === 'paused') {
+    } else if (g.status === 'levelclear') {
+      advanceLevel(g);
+    } else if (g.status === 'gameover' || g.status === 'paused') {
       if (g.status === 'paused') {
         resumeGame(g);
       } else {

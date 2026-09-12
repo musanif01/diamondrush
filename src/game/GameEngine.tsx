@@ -254,14 +254,24 @@ function Overlay({ dark, children }: { dark?: boolean; children: React.ReactNode
 function IntroOverlay({ game }: { game: GameState }) {
   const blink = game.clock % 2 === 0;
   const stage = LEVELS[game.levelIndex];
+  const backdropKey = stage?.backdrop;
+  const backdrop = backdropKey ? BACKDROPS[backdropKey] : undefined;
   return (
     <Overlay dark>
+      {backdrop && (
+        <Image
+          source={backdrop}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.4 }}
+          resizeMode="contain"
+        />
+      )}
       <Text style={[styles.flicker, styles.title]}>DIAMOND RUSH</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Pixel map={GEM_MAP} pal={GEM_PAL} size={16} />
         <Text style={styles.subtitle}>{`${stage?.name ?? ''} · ${stage?.stageLabel ?? ''}`}</Text>
       </View>
       <Text style={styles.blurb}>COLLECT ALL DIAMONDS. AVOID THE CRUSHES.</Text>
+      <Text style={styles.blurb}>DIG THE GROUND. WATCH OUT FOR SPIDERS.</Text>
       <Text style={styles.blurb}>LSK = MENU · RSK = INVENTORY</Text>
       <Text style={styles.blurb}>OK = USE / START · END = EXIT</Text>
       <Text style={[styles.prompt, { opacity: blink ? 0.2 : 1 }]}>PRESS 5 OR OK</Text>
@@ -430,6 +440,24 @@ export function GameEngine({ game, showInventory }: { game: GameState; showInven
           ) : (
             <View style={{ width: levelW, height: levelH, backgroundColor: '#0b0e12' }} />
           )}
+          {Array.from(game.dugCells).map((key) => {
+            const [dx2, dy2] = key.split(',').map(Number);
+            return (
+              <View
+                key={`pit-${key}`}
+                style={{
+                  position: 'absolute',
+                  left: (dx2 ?? 0) * TILE,
+                  top: (dy2 ?? 0) * TILE,
+                  width: TILE,
+                  height: TILE,
+                  backgroundColor: '#150d04',
+                  borderBottomWidth: 2,
+                  borderBottomColor: '#0a0602',
+                }}
+              />
+            );
+          })}
           {statics}
           {falling.map((e) => (
             <MovingSprite key={e.id} e={e} size={TILE} blink={false} />

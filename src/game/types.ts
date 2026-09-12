@@ -96,6 +96,8 @@ export interface GameState {
   exitOpen: boolean;
   hasKey: boolean;
   hasHammer: boolean;
+  /** "x,y" cells the player carved out to EMPTY (drawn as dark pits). */
+  dugCells: Set<string>;
 
   // input
   heldDir: 'up' | 'down' | 'left' | 'right' | null;
