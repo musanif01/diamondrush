@@ -39,23 +39,55 @@ const def = (rowsData: number[][], requiredDiamonds: number): LevelDef => ({
 
 // ---------------------------------------------------------------------------
 function testLevelIntegrity() {
-  console.log('level integrity');
+  console.log('level integrity (real Bavaria stage 1)');
   const g = newGame(0);
-  ok(g.cols === 14 && g.rows === 16, 'stage 1 is 14x16');
-  for (let x = 0; x < g.cols; x++) {
-    ok(tileAt(g, x, 0) === T.WALL, `top border wall at col ${x}`);
-    const bottom = tileAt(g, x, g.rows - 1);
-    ok(bottom === T.WALL || bottom === T.EXIT, `bottom border wall/exit at col ${x}`);
-  }
-  ok(g.diamondsTotal === 8, 'stage has exactly 8 diamonds');
-  ok(g.player.x === 1 && g.player.y === 1, 'player starts at (1,1)');
+  ok(g.cols === 45 && g.rows === 24, 'authentic bavaria-1 is 45x24');
+  ok(g.player.x === 2 && g.player.y === 19, 'player spawns at (2,19)');
+  ok(g.diamondsTotal === 44, 'stage needs all 44 diamonds (35 gems + 9 chests)');
+  ok(g.diamonds === 0, 'no diamonds collected at spawn');
+  ok(tileAt(g, g.player.x, g.player.y) === T.EMPTY, 'spawn cell is walkable (not a wall)');
   ok(g.status === 'playing', 'starts playing after newGame');
+  const boulders = g.entities.filter((e) => e.kind === 'boulder').length;
+  ok(boulders === 29, 'authentic count of 29 boulders');
+  const spiders = g.entities.filter((e) => e.kind === 'spider').length;
+  const snakes = g.entities.filter((e) => e.kind === 'snake').length;
+  ok(spiders === 3 && snakes === 7, '5 knights + ... spawn as 3 spiders, 7 snakes');
+}
+
+function testChestAutoCollect() {
+  console.log('chest auto-collect (no key required)');
+  const g = buildGame(
+    def(
+      [
+        [1, 1, 1, 1, 1],
+        [1, 9, 5, 0, 1],
+        [1, 1, 1, 1, 1],
+      ],
+      1,
+    ),
+  );
+  ok(g.hasKey === false, 'player has no key');
+  pushInput(g, 'right');
+  stepGame(g);
+  ok(tileAt(g, 2, 1) === T.EMPTY, 'chest consumed on step-in');
+  ok(g.diamonds === 1, 'chest counts as a diamond');
+  ok(g.hasHammer === true, 'opened chest grants the hammer tool');
+  ok(g.player.x === 2 && g.player.y === 1, 'player advanced into the chest tile');
 }
 
 function testDiggingAndWalls() {
   console.log('digging / walls');
-  const g = newGame(0);
-  pushInput(g, 'up'); // wall above player (1,0) is wall? (1,0) row0 is wall -> blocked
+  const g = buildGame(
+    def(
+      [
+        [1, 1, 1, 1, 1],
+        [1, 9, 2, 0, 1],
+        [1, 1, 1, 1, 1],
+      ],
+      0,
+    ),
+  );
+  pushInput(g, 'up'); // wall above player (1,0) -> blocked
   stepGame(g);
   ok(g.player.x === 1 && g.player.y === 1, 'blocked by wall above');
   pushInput(g, 'right'); // dig dirt (2,1)
@@ -184,6 +216,7 @@ function testExitUnlockAndWin() {
 
 // ---------------------------------------------------------------------------
 testLevelIntegrity();
+testChestAutoCollect();
 testDiggingAndWalls();
 testGravityFalling();
 testCrushDirect();

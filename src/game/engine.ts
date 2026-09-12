@@ -85,6 +85,9 @@ export function buildGame(def: LevelDef): GameState {
           entities.push(buildEntity('diamond', x, y));
           diamondsTotal++;
           break;
+        case T.CHEST:
+          diamondsTotal++;
+          break;
         case T.CRATE:
           entities.push(buildEntity('crate', x, y));
           break;
@@ -223,12 +226,9 @@ function attemptPlayerMove(g: GameState, dir: Dir): void {
   }
 
   if (tile === T.CHEST) {
-    if (!g.hasKey) {
-      emit(g, 'thud');
-      return;
-    }
     (g.grid[ty] as TileCode[])[tx] = T.EMPTY;
     g.hasHammer = true;
+    g.diamonds++;
     g.score += SCORE.CHEST;
     g.collectFlash = g.clock;
     movePlayerTo(g, tx, ty, dir);

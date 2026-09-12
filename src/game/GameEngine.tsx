@@ -1,14 +1,14 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { Entity, GameState, T, TileCode } from '../game/types';
+import { Animated, Image, StyleSheet, Text, View } from 'react-native';
+import { Entity, GameState, T } from '../game/types';
 import { tileAt } from '../game/engine';
+import { LEVELS } from '../game/levels';
+import { BACKDROPS } from '../game/backdrops';
 import {
   GEM_MAP,
   GEM_PAL,
   HEART_MAP,
   HEART_PAL,
-  KEY_MAP,
-  KEY_PAL,
   PLAYER_MAP,
   PLAYER_PAL,
   Pixel,
@@ -20,6 +20,7 @@ import {
 
 const STATUS_H = 30;
 const HUD_H = 30;
+const TILE = 24; // backdrop native pixels per tile
 
 const FILL = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const;
 
@@ -66,44 +67,11 @@ function StatusBar() {
 }
 
 // ---------------------------------------------------------------------------
-// Terrain tiles
+// Static fixtures drawn above the terrain backdrop
 // ---------------------------------------------------------------------------
-function WallTile({ size }: { size: number }) {
+function ChestSprite({ size }: { size: number }) {
   return (
-    <View style={[styles.tile, { backgroundColor: '#2f5d92' }]}>
-      <View style={[styles.abs, { top: 0, left: 0, right: 0, height: size * 0.16, backgroundColor: '#4a82c1' }]} />
-      <View style={[styles.abs, { top: '48%', left: 0, right: 0, height: 1.5, backgroundColor: '#16345c' }]} />
-      <View style={[styles.abs, { top: 0, left: '49%', width: 1.5, height: '100%', backgroundColor: 'rgba(0,0,0,0.22)' }]} />
-      <View style={[styles.abs, { top: '50%', left: '24%', width: 1.5, height: '50%', backgroundColor: 'rgba(0,0,0,0.22)' }]} />
-    </View>
-  );
-}
-
-function DirtTile({ size }: { size: number }) {
-  return (
-    <View style={[styles.tile, { backgroundColor: '#7d4a24' }]}>
-      <View style={[styles.dot, { left: '18%', top: '30%', backgroundColor: '#532d12' }]} />
-      <View style={[styles.dot, { left: '58%', top: '58%', backgroundColor: '#532d12' }]} />
-      <View style={[styles.dot, { left: '34%', top: '74%', backgroundColor: '#a96a36' }]} />
-      <View style={[styles.dot, { left: '76%', top: '24%', backgroundColor: '#a96a36' }]} />
-      <View style={[styles.dot, { left: '12%', top: '12%', backgroundColor: 'rgba(255,255,255,0.14)' }]} />
-    </View>
-  );
-}
-
-function LeavesTile() {
-  return (
-    <View style={[styles.tile, { backgroundColor: '#3e7d2f' }]}>
-      <View style={{ ...styles.dot, left: '20%', top: '38%', backgroundColor: '#27541e' }} />
-      <View style={[styles.dot, { left: '62%', top: '20%', backgroundColor: '#63a54d' }]} />
-      <View style={[styles.dot, { left: '48%', top: '72%', backgroundColor: '#27541e' }]} />
-    </View>
-  );
-}
-
-function ChestTile({ size }: { size: number }) {
-  return (
-    <View style={[styles.tile, { alignItems: 'center', justifyContent: 'center' }]}>
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View style={{ width: size * 0.72, height: size * 0.66, backgroundColor: '#8a5a24', borderWidth: 2, borderColor: '#4c2f10', borderRadius: 2 }}>
         <View style={[styles.abs, { height: size * 0.34, left: 2, right: 2, backgroundColor: '#a06a2c', borderBottomWidth: 2, borderBottomColor: '#6e441a' }]} />
         <View style={[styles.abs, { width: 4, top: 0, bottom: 0, left: '46%', backgroundColor: '#6e441a' }]} />
@@ -113,25 +81,17 @@ function ChestTile({ size }: { size: number }) {
   );
 }
 
-function KeyTile({ size }: { size: number }) {
-  return (
-    <View style={[styles.tile, { alignItems: 'center', justifyContent: 'center' }]}>
-      <Pixel map={KEY_MAP} pal={KEY_PAL} size={size * 0.86} />
-    </View>
-  );
-}
-
-function ExitTile({ size, open }: { size: number; open: boolean }) {
+function ExitSprite({ size, open }: { size: number; open: boolean }) {
   if (open) {
     return (
-      <View style={[styles.tile, { backgroundColor: 'rgba(120,40,140,0.35)' }]}>
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
         <View style={[styles.abs, { left: '18%', top: '12%', width: '64%', height: '76%', backgroundColor: '#3f1b52', borderWidth: 2, borderColor: '#b06ff0' }]} />
         <View style={[styles.abs, { left: '36%', top: '40%', width: '28%', height: '14%', backgroundColor: '#d6b0f5' }]} />
       </View>
     );
   }
   return (
-    <View style={[styles.tile, { backgroundColor: '#15161c' }]}>
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View style={[styles.abs, { left: '20%', top: '16%', width: '60%', height: '68%', backgroundColor: '#20222b', borderWidth: 2, borderColor: '#3a3d49' }]} />
       <View style={[styles.dot, { left: '30%', top: '30%', backgroundColor: '#c0392b' }]} />
       <View style={[styles.dot, { left: '62%', top: '30%', backgroundColor: '#c0392b' }]} />
@@ -139,23 +99,6 @@ function ExitTile({ size, open }: { size: number; open: boolean }) {
     </View>
   );
 }
-
-const TileView = memo(function TileView({ t, size }: { t: TileCode; size: number }) {
-  switch (t) {
-    case T.WALL:
-      return <WallTile size={size} />;
-    case T.DIRT:
-      return <DirtTile size={size} />;
-    case T.LEAVES:
-      return <LeavesTile />;
-    case T.CHEST:
-      return <ChestTile size={size} />;
-    case T.KEY:
-      return <KeyTile size={size} />;
-    default:
-      return <View style={[styles.tile, { backgroundColor: 'transparent' }]} />;
-  }
-});
 
 // ---------------------------------------------------------------------------
 // Entity sprites (drawn above terrain)
@@ -228,7 +171,7 @@ function EntitySprite({ e, size, blink }: { e: Entity; size: number; blink: bool
 }
 
 /** Wraps an entity in a tweened Animated position between grid cells. */
-function MovingSprite({ e, size, blink }: { e: Entity; size: number; blink: boolean }) {
+const MovingSprite = memo(function MovingSprite({ e, size, blink }: { e: Entity; size: number; blink: boolean }) {
   const pos = useRef(new Animated.ValueXY({ x: e.x * size, y: e.y * size })).current;
   const last = useRef({ x: e.x, y: e.y });
 
@@ -256,7 +199,7 @@ function MovingSprite({ e, size, blink }: { e: Entity; size: number; blink: bool
       <EntitySprite e={e} size={size} blink={blink} />
     </Animated.View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // HUD
@@ -310,14 +253,15 @@ function Overlay({ dark, children }: { dark?: boolean; children: React.ReactNode
 
 function IntroOverlay({ game }: { game: GameState }) {
   const blink = game.clock % 2 === 0;
+  const stage = LEVELS[game.levelIndex];
   return (
     <Overlay dark>
       <Text style={[styles.flicker, styles.title]}>DIAMOND RUSH</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Pixel map={GEM_MAP} pal={GEM_PAL} size={16} />
-        <Text style={styles.subtitle}>STAGE 1 · BAVARIA RUINS</Text>
+        <Text style={styles.subtitle}>{`${stage?.name ?? ''} · ${stage?.stageLabel ?? ''}`}</Text>
       </View>
-      <Text style={styles.blurb}>DIG THE BUTTONS. AVOID THE CRUSHES.</Text>
+      <Text style={styles.blurb}>COLLECT ALL DIAMONDS. AVOID THE CRUSHES.</Text>
       <Text style={styles.blurb}>LSK = MENU · RSK = INVENTORY</Text>
       <Text style={styles.blurb}>OK = USE / START · END = EXIT</Text>
       <Text style={[styles.prompt, { opacity: blink ? 0.2 : 1 }]}>PRESS 5 OR OK</Text>
@@ -330,7 +274,7 @@ function PauseOverlay() {
     <Overlay dark>
       <Text style={styles.pauseText}>PAUSED</Text>
       <Text style={styles.hint}>CALL OR 5 TO RESUME</Text>
-      <Text style={styles.hint}>RSK TO RETRY LEVEL</Text>
+      <Text style={styles.hint}>0 = RETRY LEVEL</Text>
       <Text style={styles.hint}>END FOR TITLE</Text>
     </Overlay>
   );
@@ -381,22 +325,36 @@ function InventoryOverlay({ game }: { game: GameState }) {
 }
 
 // ---------------------------------------------------------------------------
-// The LCD screen — grid renderer + HUD + overlays
+// Scrollable playfield — authentic backdrop + camera + entities
 // ---------------------------------------------------------------------------
 export function GameEngine({ game, showInventory }: { game: GameState; showInventory: boolean }) {
-  const [size, setSize] = useState<ScreenSize>({ w: 292, h: 389 });
+  const [size, setSize] = useState<ScreenSize>({ w: 290, h: 387 });
 
   const cols = game.cols;
   const rows = game.rows;
+  const levelW = cols * TILE;
+  const levelH = rows * TILE;
 
-  const availH = size.h - STATUS_H - HUD_H - 2;
-  const tile = Math.max(8, Math.min(Math.floor((size.w - 2) / cols), Math.floor((availH - 2) / rows)));
-  const gridW = tile * cols;
-  const gridH = tile * rows;
-  const gridX = Math.round((size.w - gridW) / 2);
-  const gridY = Math.round(STATUS_H + (size.h - STATUS_H - HUD_H - gridH) / 2);
+  const backdropKey = LEVELS[game.levelIndex]?.backdrop;
+  const backdrop = backdropKey ? BACKDROPS[backdropKey] : undefined;
+
+  const vpW = size.w;
+  const vpH = Math.max(60, size.h - STATUS_H - HUD_H);
+  const maxCamX = Math.max(0, levelW - vpW);
+  const maxCamY = Math.max(0, levelH - vpH);
+
+  const camX = Math.min(maxCamX, Math.max(0, game.player.x * TILE + TILE / 2 - vpW / 2));
+  const camY = Math.min(maxCamY, Math.max(0, game.player.y * TILE + TILE / 2 - vpH / 2));
 
   const shake = useRef(new Animated.Value(0)).current;
+  const panX = useRef(new Animated.Value(-camX)).current;
+  const panY = useRef(new Animated.Value(-camY)).current;
+
+  useEffect(() => {
+    panX.setValue(-camX);
+    panY.setValue(-camY);
+  }, [camX, camY, panX, panY]);
+
   const prevDoor = useRef(game.doorUnlockFlash);
   const prevHurt = useRef(game.hurtFlash);
 
@@ -423,61 +381,71 @@ export function GameEngine({ game, showInventory }: { game: GameState; showInven
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.doorUnlockFlash, game.hurtFlash]);
 
-  // terrain cells
-  const rowsEl: React.ReactNode[] = [];
+  // static fixtures (chests + exit) as overlays on the terrain
+  const statics: React.ReactNode[] = [];
   for (let y = 0; y < rows; y++) {
-    const cells: React.ReactNode[] = [];
     for (let x = 0; x < cols; x++) {
       const t = tileAt(game, x, y);
-      cells.push(<TileView key={x} t={t} size={tile} />);
+      if (t === T.CHEST) {
+        statics.push(
+          <View key={`c${x}-${y}`} style={{ position: 'absolute', left: x * TILE, top: y * TILE, width: TILE, height: TILE }}>
+            <ChestSprite size={TILE} />
+          </View>,
+        );
+      } else if (t === T.EXIT) {
+        statics.push(
+          <View key={`x${x}-${y}`} style={{ position: 'absolute', left: x * TILE, top: y * TILE, width: TILE, height: TILE }}>
+            <ExitSprite size={TILE} open={game.exitOpen} />
+          </View>,
+        );
+      }
     }
-    rowsEl.push(
-      <View key={y} style={{ flexDirection: 'row' }}>
-        {cells}
-      </View>,
-    );
   }
 
-  // entities (player drawn last so he appears on top)
   const falling = game.entities
     .filter((e) => e.kind === 'boulder' || e.kind === 'diamond' || e.kind === 'crate')
     .sort((a, b) => a.y - b.y || a.x - b.x);
   const enemies = game.entities.filter((e) => e.kind === 'spider' || e.kind === 'snake');
   const playerBlink = game.player.invuln > 0;
 
-  const exit = game.exitOpen;
-
   return (
     <View style={styles.lcd} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       <StatusBar />
 
-      <Animated.View
-        style={[
-          styles.gridWrap,
-          {
-            left: gridX,
-            top: gridY,
-            width: gridW,
-            height: gridH,
-            transform: [{ translateX: shake }],
-          },
-        ]}
-      >
-        {rowsEl}
-        {falling.map((e) => (
-          <MovingSprite key={e.id} e={e} size={tile} blink={false} />
-        ))}
-        {enemies.map((e) => (
-          <MovingSprite key={e.id} e={e} size={tile} blink={false} />
-        ))}
-        <MovingSprite key={game.player.id} e={game.player} size={tile} blink={playerBlink} />
-      </Animated.View>
+      <View style={{ position: 'absolute', top: STATUS_H, left: 0, width: vpW, height: vpH, overflow: 'hidden' }}>
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: levelW,
+              height: levelH,
+            },
+            { transform: [{ translateX: Animated.add(panX, shake) }, { translateY: panY }] },
+          ]}
+        >
+          {backdrop ? (
+            <Image source={backdrop} style={{ width: levelW, height: levelH }} resizeMode="stretch" />
+          ) : (
+            <View style={{ width: levelW, height: levelH, backgroundColor: '#0b0e12' }} />
+          )}
+          {statics}
+          {falling.map((e) => (
+            <MovingSprite key={e.id} e={e} size={TILE} blink={false} />
+          ))}
+          {enemies.map((e) => (
+            <MovingSprite key={e.id} e={e} size={TILE} blink={false} />
+          ))}
+          <MovingSprite key={game.player.id} e={game.player} size={TILE} blink={playerBlink} />
+        </Animated.View>
 
-      {exit && (
-        <View pointerEvents="none" style={[styles.exitBanner, { top: gridY - 1 }]}>
-          <Text style={styles.exitBannerText}>EXIT OPEN</Text>
-        </View>
-      )}
+        {game.exitOpen && (
+          <View pointerEvents="none" style={[styles.exitBanner, { top: 4 }]}>
+            <Text style={styles.exitBannerText}>EXIT OPEN</Text>
+          </View>
+        )}
+      </View>
 
       <Hud game={game} />
       <Crt />
@@ -536,16 +504,8 @@ const styles = StyleSheet.create({
   batteryTip: { width: 3, height: 5, backgroundColor: '#3b824a', borderTopRightRadius: 1, borderBottomRightRadius: 1 },
   batteryText: { color: '#cfe6d4', fontSize: 9, fontWeight: '700', fontFamily: 'monospace' },
 
-  tile: {
-    width: '100%',
-    aspectRatio: 1,
-  },
   abs: { position: 'absolute' },
   dot: { position: 'absolute', width: 3, height: 3, borderRadius: 1.5 },
-
-  gridWrap: {
-    position: 'absolute',
-  },
 
   hud: {
     position: 'absolute',
