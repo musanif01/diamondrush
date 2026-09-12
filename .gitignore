@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# expo
+.expo/
+dist/
+dist-test/
+web-build/
+
+# native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+
+# env
+.env
+.env.local

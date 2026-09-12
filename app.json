@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Diamond Rush",
+    "slug": "diamondrush",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0c10",
+    "splash": {
+      "backgroundColor": "#0a0c10"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "userInterfaceStyle": "dark"
+    },
+    "android": {
+      "userInterfaceStyle": "dark",
+      "edgeToEdgeEnabled": false
+    },
+    "web": {
+      "backgroundColor": "#0a0c10"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}
